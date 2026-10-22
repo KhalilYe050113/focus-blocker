@@ -1,0 +1,26 @@
+{
+  "rules": [
+    { "pattern": "douyin.com", "type": "domain", "group": "短视频", "enabled": true },
+    { "pattern": "kuaishou.com", "type": "domain", "group": "短视频", "enabled": true },
+    { "pattern": "bilibili.com", "type": "domain", "group": "短视频", "enabled": true },
+    { "pattern": "youtube.com/shorts", "type": "path", "group": "短视频", "enabled": true },
+    { "pattern": "xiaohongshu.com", "type": "domain", "group": "短视频", "enabled": true },
+    { "pattern": "weibo.com", "type": "domain", "group": "社交", "enabled": true },
+    { "pattern": "x.com", "type": "domain", "group": "社交", "enabled": true },
+    { "pattern": "zhihu.com", "type": "domain", "group": "社交", "enabled": true },
+    { "pattern": "douban.com", "type": "domain", "group": "社交", "enabled": true },
+    { "pattern": "steamcommunity.com", "type": "domain", "group": "游戏", "enabled": false },
+    { "pattern": "taobao.com", "type": "domain", "group": "购物", "enabled": false }
+  ],
+  "whitelist": [
+    { "pattern": "bilibili.com/read", "type": "path", "group": "白名单", "enabled": true }
+  ],
+  "quotes": [
+    "先把论文改完，再看一小时。",
+    "你不是没时间，是把时间给了这个页面。",
+    "现在关掉它，晚上就不用还债。",
+    "刷完这一条，什么也不会变。"
+  ],
+  "waitSeconds": 10,
+  "passMinutes": 5
+}
