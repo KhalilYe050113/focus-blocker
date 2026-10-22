@@ -50,7 +50,7 @@
 
 ## 更新
 
-脚本从安装地址检查更新。想让更新更稳，可以在脚本头部的 `==UserScript==` 里加两行（换成你的地址）：
+脚本从安装地址检查更新。想让更新更稳，可以在脚本头部的 `==UserScript==` 里加两行：
 
 ```
 // @updateURL    https://raw.githubusercontent.com/KhalilYe050113/focus-blocker/main/blocker.user.js
