@@ -13,7 +13,7 @@
 ## 它做什么
 
 - 命中黑名单的页面在开始加载时就被整页替换，不闪原网站，`window.stop()` 会中止后续资源
-- 普通规则：等 10 秒 + 写理由 → 放行 5 分钟，只对当前标签页当前域名有效，到期自动刷新回拦截页
+- 普通规则：等 10 秒 + 写理由 → 放行 5 分钟，覆盖命中规则的范围（域名规则含所有子域，路径规则只放该路径），跨标签页共享，到期自动刷新回拦截页
 - 强制分组：拦截页没有放行入口，白名单、放行凭证、暂停都绕不过去
 - 名单支持域名、子域、通配、路径、正则，白名单优先放行
 - 分组可按组折叠、筛选、整组启停，统计页能看每组拦了多少次
@@ -50,12 +50,16 @@
 
 ## 更新
 
-脚本从安装地址检查更新。想让更新更稳，可以在脚本头部的 `==UserScript==` 里加两行：
+脚本从安装地址检查更新。想让更新更稳，可以在脚本头部的 `==UserScript==` 里加两行（换成你的地址）：
 
 ```
 // @updateURL    https://raw.githubusercontent.com/KhalilYe050113/focus-blocker/main/blocker.user.js
 // @downloadURL  https://raw.githubusercontent.com/KhalilYe050113/focus-blocker/main/blocker.user.js
 ```
+
+## 更新日志
+
+见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         网站拦截器 · 专注守护
 // @namespace    local.focus-blocker
-// @version      1.1.7
-// @description  拦截指定网站：命中立刻遮蔽并中止加载；分组可设全程 / 时段 / 强制三种策略，支持自定义时段与放行额度
+// @version      1.1.8
+// @description  拦截指定网站：命中立刻遮蔽并中止加载；分组可设全程 / 时段 / 强制三种策略，支持自定义时段与放行额度；放行按命中规则的覆盖范围生效
 // @author       Khalil
 // @match        *://*/*
 // @run-at       document-start
@@ -17,7 +17,8 @@
 
   var KEY_CFG = 'apb.config.v1';
   var KEY_STATS = 'apb.stats.v1';
-  var PASS_PREFIX = '__apb_pass__';
+  var KEY_PASS = 'apb.pass.v1';
+  var PASS_MAX = 80;
   var DAY = 86400000;
   var EST_MIN_PER_BLOCK = 6;
 
@@ -106,6 +107,20 @@
       return cur === path || cur.indexOf(path + '/') === 0 || cur.indexOf(path + '?') === 0;
     }
     return hostMatch(ctx.host, p);
+  }
+
+  function passKeyOf(rule) {
+    var t = (rule && rule.type) ? String(rule.type) : 'domain';
+    var p = (rule && rule.pattern) ? String(rule.pattern) : '';
+    return t + '|' + p;
+  }
+
+  function passCovers(rec, ctx) {
+    if (!rec || !ctx || !rec.pattern) return false;
+    var exp = Number(rec.exp);
+    if (!isFinite(exp) || exp <= Date.now()) return false;
+    var t = ['domain', 'wildcard', 'path', 'regex'].indexOf(rec.type) >= 0 ? rec.type : 'domain';
+    return matchPattern({ pattern: rec.pattern, type: t, enabled: true }, ctx);
   }
   /* @pure-end */
 
@@ -479,21 +494,69 @@
     return null;
   }
 
-  function getPass(host) {
-    try {
-      var v = sessionStorage.getItem(PASS_PREFIX + host);
-      return v ? Number(v) : 0;
-    } catch (e) {
-      return 0;
+  function pageCtx() {
+    return {
+      host: String(location.hostname || '').toLowerCase(),
+      path: location.pathname + location.search,
+      href: location.href
+    };
+  }
+
+  function loadPasses() {
+    var raw = gmGet(KEY_PASS, []);
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch (e) { raw = []; }
     }
+    if (!Array.isArray(raw)) return [];
+    var now = Date.now();
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var p = raw[i];
+      if (!p || !p.pattern) continue;
+      if (!(Number(p.exp) > now)) continue;
+      out.push(p);
+    }
+    return out;
   }
 
-  function setPass(host, exp) {
-    try { sessionStorage.setItem(PASS_PREFIX + host, String(exp)); } catch (e) { /* ignore */ }
+  function savePasses(list) {
+    var out = Array.isArray(list) ? list.slice(0, PASS_MAX) : [];
+    gmSet(KEY_PASS, out);
   }
 
-  function clearPass(host) {
-    try { sessionStorage.removeItem(PASS_PREFIX + host); } catch (e) { /* ignore */ }
+  function findPass(ctx) {
+    var list = loadPasses();
+    var best = null;
+    for (var i = 0; i < list.length; i++) {
+      if (!passCovers(list[i], ctx)) continue;
+      if (!best || Number(list[i].exp) > Number(best.exp)) best = list[i];
+    }
+    return best;
+  }
+
+  function grantPass(rule, exp, meta) {
+    if (!rule || !rule.pattern) return null;
+    var rec = {
+      key: passKeyOf(rule),
+      pattern: String(rule.pattern),
+      type: rule.type,
+      exp: Number(exp),
+      ts: Date.now(),
+      group: (meta && meta.group) || '',
+      from: (meta && meta.host) || ''
+    };
+    var list = loadPasses().filter(function (p) { return p.key !== rec.key; });
+    list.unshift(rec);
+    savePasses(list);
+    return rec;
+  }
+
+  function revokePassesFor(ctx, key) {
+    var list = loadPasses().filter(function (p) {
+      if (key && p.key === key) return false;
+      return !passCovers(p, ctx);
+    });
+    savePasses(list);
   }
 
   function isTopFrame() {
@@ -632,7 +695,7 @@
       } else {
         passBtn.disabled = false;
         passBtn.textContent = '限时放行 ' + passMin + ' 分钟';
-        tip.textContent = '放行后 ' + passMin + ' 分钟内不再拦截，可随时收回';
+        tip.textContent = '放行后 ' + passMin + ' 分钟内，本条规则覆盖的范围不再拦截，可随时收回';
       }
     }
     if (passBtn) tick();
@@ -673,7 +736,7 @@
           return;
         }
         var ms = passMin * 60000;
-        setPass(host, Date.now() + ms);
+        grantPass(rule || { pattern: host, type: 'domain' }, Date.now() + ms, { group: group, host: host });
         cfg.log.unshift({ ts: Date.now(), domain: host, reason: reason || '（未填）', minutes: passMin, group: group });
         if (cfg.log.length > 300) cfg.log.length = 300;
         saveCfg();
@@ -751,7 +814,8 @@
     else setTimeout(paint, 10);
   }
 
-  function showPassBadge(exp) {
+  function showPassBadge(rec) {
+    var exp = Number(rec.exp);
     var host = document.createElement('div');
     host.setAttribute('data-apb', 'pass');
     host.style.cssText = 'all:initial;position:fixed;right:16px;bottom:16px;z-index:2147483646;';
@@ -780,7 +844,7 @@
     tick();
 
     btn.addEventListener('click', function () {
-      clearPass(String(location.hostname || '').toLowerCase());
+      revokePassesFor(pageCtx(), rec.key);
       location.reload();
     });
   }
@@ -798,7 +862,7 @@
         }
         var hit = findHit();
         if (!hit) return;
-        if (!isStrictRule(hit) && getPass(location.hostname) > Date.now()) return;
+        if (!isStrictRule(hit) && effPass(hit).allow && findPass(pageCtx())) return;
         blockNow(hit);
       } catch (e) { /* ignore */ }
     }
@@ -2042,10 +2106,12 @@
       return;
     }
 
-    var exp = getPass(location.hostname);
     var hit = findHit();
     if (!hit) { installSpaGuard(); return; }
-    if (!isStrictRule(hit) && exp > Date.now()) { showPassBadge(exp); installSpaGuard(); return; }
+    if (!isStrictRule(hit) && effPass(hit).allow) {
+      var rec = findPass(pageCtx());
+      if (rec) { showPassBadge(rec); installSpaGuard(); return; }
+    }
     blockNow(hit);
   }
 
